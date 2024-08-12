@@ -31,10 +31,34 @@ df_ratings = pd.read_csv(
 
 # add your code here - consider creating a new cell for each section of code
 
+users = df_ratings['user'].value_counts()
+df_ratings = df_ratings[df_ratings['user'].isin(users[users >= 200].index)]
+books = df_ratings['isbn'].value_counts()
+df_ratings = df_ratings[df_ratings['isbn'].isin(books[books >= 100].index)]
+
+df = pd.merge(df_ratings, df_books, on='isbn')
+df = df.groupby(['title', 'user']).rating.mean().reset_index()
+
+mtx = df.pivot(index='title', columns='user', values='rating').fillna(0)
+book_mtx = csr_matrix(mtx.values)
+
+# Train the KNN model
+model = NearestNeighbors(metric='cosine', algorithm='brute')
+model.fit(book_mtx)
+
 # function to return recommended books - this will be tested
 def get_recommends(book = ""):
+  book_idx = mtx.index.get_loc(book)
 
-  return recommended_books
+  # Find the K nearest neighbors (5 in this case)
+  distances, indices = model.kneighbors(mtx.iloc[book_idx, :].values.reshape(1, -1), n_neighbors=6)
+
+  # Create a list of recommendations
+  recommended_books = []
+  for i in range(1, len(distances.flatten())):
+      recommended_books.append((mtx.index[indices.flatten()[i]], float(distances.flatten()[i])))
+
+  return [book,recommended_books]
 
 books = get_recommends("Where the Heart Is (Oprah's Book Club (Paperback))")
 print(books)
